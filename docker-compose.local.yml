@@ -1,0 +1,52 @@
+# LOCAL DEVELOPMENT / TESTING ONLY.
+#
+# This is NOT what we deploy to AWS -- on AWS, each service runs on its
+# own separate EC2 instance (that's the point of the lab). This Compose
+# file exists purely so you can verify the frontend, backend, and database
+# all work together correctly on your own machine BEFORE touching AWS at
+# all. Debugging locally is far faster than debugging across 3 EC2
+# instances, so always prove it here first.
+#
+# Run with: docker compose -f docker-compose.local.yml up --build
+
+version: "3.9"
+
+services:
+  database:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: labdb
+      POSTGRES_USER: labuser
+      POSTGRES_PASSWORD: labpassword
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U labuser -d labdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    environment:
+      DB_HOST: database
+      DB_PORT: "5432"
+      DB_NAME: labdb
+      DB_USER: labuser
+      DB_PASSWORD: labpassword
+      ALLOWED_ORIGINS: "*"
+    ports:
+      - "8000:8000"
+    depends_on:
+      database:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
