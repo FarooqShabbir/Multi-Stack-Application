@@ -1,0 +1,29 @@
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - backend/*
+
+pool:
+  name: msa-lab-agent-pool
+
+variables:
+  BACKEND_PRIVATE_IP: '10.0.11.237'   # fill in from EC2 console
+
+steps:
+  - script: |
+      echo "Triggering deploy on backend instance via SSM..."
+      aws ssm send-command \
+        --instance-ids "$(BACKEND_INSTANCE_ID)" \
+        --document-name "AWS-RunShellScript" \
+        --parameters commands='[
+          "cd /home/ubuntu/Multi-Stack-Application || git clone https://github.com/FarooqShabbir/Multi-Stack-Application.git /home/ubuntu/Multi-Stack-Application",
+          "cd /home/ubuntu/Multi-Stack-Application && git pull origin main",
+          "cd /home/ubuntu/Multi-Stack-Application/backend && sudo docker build -t msa-backend .",
+          "sudo docker rm -f backend || true",
+          "sudo docker run -d --name backend --restart unless-stopped -e DB_HOST=$(DATABASE_PRIVATE_IP) -e DB_PORT=5432 -e DB_NAME=labdb -e DB_USER=labuser -e DB_PASSWORD=$(DB_PASSWORD) -e ALLOWED_ORIGINS=* -p 8000:8000 msa-backend"
+        ]' \
+        --region ap-southeast-1
+    displayName: 'Deploy backend via SSM'
